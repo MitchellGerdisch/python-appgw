@@ -25,18 +25,18 @@ vnet = azure_native.network.VirtualNetwork("vnet",
     resource_group_name=resource_group.name)
 
 ####
-## Although I enabled the preview that allows for the case of not using public IPs, 
-## I'm keeping it for now to see if I can get a successful deployment.
+## I enabled the preview that allows for the case of not using public IPs,
+## Remove the public IP configuration to see if I can get a successful deployment
 # Create a public IP for the Application Gateway (required for Standard_v2 SKU)
-public_ip = azure_native.network.PublicIPAddress("appgw-public-ip",
-    public_ip_address_name="pk-appgw-2-pip",
-    resource_group_name=resource_group.name,
-    public_ip_allocation_method=azure_native.network.IPAllocationMethod.STATIC,
-    sku=azure_native.network.PublicIPAddressSkuArgs(
-        name=azure_native.network.PublicIPAddressSkuName.STANDARD,
-        tier=azure_native.network.PublicIPAddressSkuTier.REGIONAL,
-    ),
-)
+# public_ip = azure_native.network.PublicIPAddress("appgw-public-ip",
+#     public_ip_address_name="pk-appgw-2-pip",
+#     resource_group_name=resource_group.name,
+#     public_ip_allocation_method=azure_native.network.IPAllocationMethod.STATIC,
+#     sku=azure_native.network.PublicIPAddressSkuArgs(
+#         name=azure_native.network.PublicIPAddressSkuName.STANDARD,
+#         tier=azure_native.network.PublicIPAddressSkuTier.REGIONAL,
+#     ),
+# )
 
 subnet = azure_native.network.Subnet("subnet",
                                      resource_group_name=resource_group.name,
@@ -90,16 +90,16 @@ azure_native.network.ApplicationGateway(
             ],
             enable_http2=True,
             frontend_ip_configurations=[
-                ####
-                # Add the public IP configuration to see if I can get a successful deployment
                 azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
                     name="frontendIPConfig1",
-                    public_ip_address=azure_native.network.SubResourceArgs(
-                        id=public_ip.id,
-                    ),
-                ),
-                azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
-                    name="frontendIPConfig2",
+                ####
+                # Remove the public IP configuration to see if I can get a successful deployment
+                #     public_ip_address=azure_native.network.SubResourceArgs(
+                #         id=public_ip.id,
+                #     ),
+                # ),
+                # azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
+                #     name="frontendIPConfig2",
                     subnet=azure_native.network.SubResourceArgs(
                         id=subnet.id,
                     ),
