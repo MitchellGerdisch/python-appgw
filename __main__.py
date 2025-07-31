@@ -24,12 +24,34 @@ vnet = azure_native.network.VirtualNetwork("vnet",
     },
     resource_group_name=resource_group.name)
 
+####
+## Although I enabled the preview that allows for the case of not using public IPs, 
+## I'm keeping it for now to see if I can get a successful deployment.
+# Create a public IP for the Application Gateway (required for Standard_v2 SKU)
+public_ip = azure_native.network.PublicIPAddress("appgw-public-ip",
+    public_ip_address_name="pk-appgw-2-pip",
+    resource_group_name=resource_group.name,
+    public_ip_allocation_method=azure_native.network.IPAllocationMethod.STATIC,
+    sku=azure_native.network.PublicIPAddressSkuArgs(
+        name=azure_native.network.PublicIPAddressSkuName.STANDARD,
+        tier=azure_native.network.PublicIPAddressSkuTier.REGIONAL,
+    ),
+)
+
 subnet = azure_native.network.Subnet("subnet",
                                      resource_group_name=resource_group.name,
                                      virtual_network_name=vnet.name,
                                     address_prefix="10.1.0.0/24",
                                     private_endpoint_network_policies=azure_native.network.VirtualNetworkPrivateEndpointNetworkPolicies.DISABLED,
                                     private_link_service_network_policies=azure_native.network.VirtualNetworkPrivateLinkServiceNetworkPolicies.ENABLED,
+                                    ####
+                                    ## AI added this address a 400 error about requring subnet delegation
+                                    delegations=[
+                                        azure_native.network.DelegationArgs(
+                                            name="Microsoft.Network.applicationGateways",
+                                            service_name="Microsoft.Network/applicationGateways",
+                                        )
+                                    ],
                                      )
 
 azure_native.network.ApplicationGateway(
@@ -44,11 +66,13 @@ azure_native.network.ApplicationGateway(
                 azure_native.network.ApplicationGatewayBackendHttpSettingsArgs(
                     name="httpsettings1",
                     affinity_cookie_name="ApplicationGatewayAffinity",
-                    authentication_certificates=[
-                        azure_native.network.SubResourceArgs(
-                            id="$self/sslCertificates/testappgw.example.com",
-                        ),
-                    ],
+                    ####
+                    ## AI wants to get rid of this
+                    # authentication_certificates=[
+                    #     azure_native.network.SubResourceArgs(
+                    #         id="$self/sslCertificates/testappgw.example.com",
+                    #     ),
+                    # ],
                     connection_draining=azure_native.network.ApplicationGatewayConnectionDrainingArgs(
                         enabled=True,
                         drain_timeout_in_sec=60,
@@ -66,14 +90,21 @@ azure_native.network.ApplicationGateway(
             ],
             enable_http2=True,
             frontend_ip_configurations=[
+                ####
+                # Add the public IP configuration to see if I can get a successful deployment
                 azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
                     name="frontendIPConfig1",
+                    public_ip_address=azure_native.network.SubResourceArgs(
+                        id=public_ip.id,
+                    ),
+                ),
+                azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
+                    name="frontendIPConfig2",
                     subnet=azure_native.network.SubResourceArgs(
                         id=subnet.id,
                     ),
-                    # this was one of the things the pipeline complained about - on the current sku we have to have a static IP Address defined here.
                     private_ip_allocation_method=azure_native.network.IPAllocationMethod.STATIC,
-                    private_ip_address="10.1.2.3"
+                    private_ip_address="10.1.0.100"
                 ),
             ],
             frontend_ports=[
@@ -102,7 +133,7 @@ azure_native.network.ApplicationGateway(
                     ),
                     require_server_name_indication=False,
                     ssl_certificate=azure_native.network.SubResourceArgs(
-                        id="$self/sslCertificates/testappgw.rlicorp.com"
+                        id="$self/sslCertificates/testappgw.example.com"
                     )
                 ),
             ],
@@ -132,7 +163,7 @@ azure_native.network.ApplicationGateway(
             probes=[
                 azure_native.network.ApplicationGatewayProbeArgs(
                     protocol=azure_native.network.ApplicationGatewayProtocol.HTTPS,
-                    host="testthething,example.com",
+                    host="testing.example.com",
                     path="/",
                     name="probe1",
                     unhealthy_threshold=3,
