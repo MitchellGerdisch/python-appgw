@@ -16,13 +16,24 @@ with open("./key/output.pfx", "rb") as cert_file:
 # Create an Azure Resource Group
 resource_group = resources.ResourceGroup("resource_group")
 
-
-
 vnet = azure_native.network.VirtualNetwork("vnet",
     address_space={
         "address_prefixes": ["10.1.0.0/16"],
     },
     resource_group_name=resource_group.name)
+
+########
+### AI suggested this since V2 skus are not supported for private-only endpoints.
+# Create a public IP for the Application Gateway
+public_ip = azure_native.network.PublicIPAddress("appgw-public-ip",
+    public_ip_address_name="pk-appgw-2-pip",
+    resource_group_name=resource_group.name,
+    public_ip_allocation_method=azure_native.network.IPAllocationMethod.STATIC,
+    sku=azure_native.network.PublicIPAddressSkuArgs(
+        name=azure_native.network.PublicIPAddressSkuName.STANDARD,
+        tier=azure_native.network.PublicIPAddressSkuTier.REGIONAL,
+    ),
+)
 
 subnet = azure_native.network.Subnet("subnet",
                                      resource_group_name=resource_group.name,
@@ -44,11 +55,6 @@ azure_native.network.ApplicationGateway(
                 azure_native.network.ApplicationGatewayBackendHttpSettingsArgs(
                     name="httpsettings1",
                     affinity_cookie_name="ApplicationGatewayAffinity",
-                    authentication_certificates=[
-                        azure_native.network.SubResourceArgs(
-                            id="$self/sslCertificates/testappgw.example.com",
-                        ),
-                    ],
                     connection_draining=azure_native.network.ApplicationGatewayConnectionDrainingArgs(
                         enabled=True,
                         drain_timeout_in_sec=60,
@@ -66,14 +72,24 @@ azure_native.network.ApplicationGateway(
             ],
             enable_http2=True,
             frontend_ip_configurations=[
+                ####
+                ## Need to add the public IP Address here, to appease the V2 sku requirements.
                 azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
                     name="frontendIPConfig1",
+                    public_ip_address=azure_native.network.SubResourceArgs(
+                        id=public_ip.id,
+                    ),
+                ),
+                azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
+                    name="frontendIPConfig2",
                     subnet=azure_native.network.SubResourceArgs(
                         id=subnet.id,
                     ),
                     # this was one of the things the pipeline complained about - on the current sku we have to have a static IP Address defined here.
                     private_ip_allocation_method=azure_native.network.IPAllocationMethod.STATIC,
-                    private_ip_address="10.1.2.3"
+                    ####
+                    ## Also changed the IP address used here to match the subnet.
+                    private_ip_address="10.1.0.100"
                 ),
             ],
             frontend_ports=[
@@ -102,7 +118,8 @@ azure_native.network.ApplicationGateway(
                     ),
                     require_server_name_indication=False,
                     ssl_certificate=azure_native.network.SubResourceArgs(
-                        id="$self/sslCertificates/testappgw.rlicorp.com"
+                        #### Change to match certificate
+                        id="$self/sslCertificates/testappgw.example.com"
                     )
                 ),
             ],
@@ -132,7 +149,7 @@ azure_native.network.ApplicationGateway(
             probes=[
                 azure_native.network.ApplicationGatewayProbeArgs(
                     protocol=azure_native.network.ApplicationGatewayProtocol.HTTPS,
-                    host="testthething,example.com",
+                    host="testing.example.com",
                     path="/",
                     name="probe1",
                     unhealthy_threshold=3,
