@@ -25,15 +25,17 @@ vnet = azure_native.network.VirtualNetwork("vnet",
 ########
 ### AI suggested this since V2 skus are not supported for private-only endpoints.
 # Create a public IP for the Application Gateway
-public_ip = azure_native.network.PublicIPAddress("appgw-public-ip",
-    public_ip_address_name="pk-appgw-2-pip",
-    resource_group_name=resource_group.name,
-    public_ip_allocation_method=azure_native.network.IPAllocationMethod.STATIC,
-    sku=azure_native.network.PublicIPAddressSkuArgs(
-        name=azure_native.network.PublicIPAddressSkuName.STANDARD,
-        tier=azure_native.network.PublicIPAddressSkuTier.REGIONAL,
-    ),
-)
+### But enabled private ip for v2 app gw as per 
+### https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-private-deployment?tabs=portal
+# public_ip = azure_native.network.PublicIPAddress("appgw-public-ip",
+#     public_ip_address_name="pk-appgw-2-pip",
+#     resource_group_name=resource_group.name,
+#     public_ip_allocation_method=azure_native.network.IPAllocationMethod.STATIC,
+#     sku=azure_native.network.PublicIPAddressSkuArgs(
+#         name=azure_native.network.PublicIPAddressSkuName.STANDARD,
+#         tier=azure_native.network.PublicIPAddressSkuTier.REGIONAL,
+#     ),
+# )
 
 subnet = azure_native.network.Subnet("subnet",
                                      resource_group_name=resource_group.name,
@@ -72,16 +74,17 @@ azure_native.network.ApplicationGateway(
             ],
             enable_http2=True,
             frontend_ip_configurations=[
-                ####
-                ## Need to add the public IP Address here, to appease the V2 sku requirements.
+                # ####
+                # ## Need to add the public IP Address here, to appease the V2 sku requirements.
+                # ## BUT testing after enabling private IP for V2 app gw
+                # azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
+                #     name="frontendIPConfig1",
+                #     public_ip_address=azure_native.network.SubResourceArgs(
+                #         id=public_ip.id,
+                #     ),
+                # ),
                 azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
                     name="frontendIPConfig1",
-                    public_ip_address=azure_native.network.SubResourceArgs(
-                        id=public_ip.id,
-                    ),
-                ),
-                azure_native.network.ApplicationGatewayFrontendIPConfigurationArgs(
-                    name="frontendIPConfig2",
                     subnet=azure_native.network.SubResourceArgs(
                         id=subnet.id,
                     ),
